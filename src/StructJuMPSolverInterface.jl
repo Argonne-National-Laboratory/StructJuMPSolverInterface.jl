@@ -14,7 +14,7 @@ abstract type ModelInterface end
 
 export ModelInterface, KnownSolvers, sj_solve, getModel, getVarValue, getVarValues, getNumVars, 
         getNumCons, getTotalNumVars, getTotalNumCons, getLocalBlocksIds, getLocalChildrenIds,
-        getObjectiveVal
+        getObjectiveVal, setTimeLimit
 
 const KnownSolvers = Dict{AbstractString,Function}();
 
@@ -184,6 +184,27 @@ function getLocalChildrenIds(m)
       e = numScens
     end
     ids = collect(s:e)
+end
+
+function setTimeLimit(limit)
+    myrank,mysize = getMyRank()
+    if myrank == 0
+        # what's the unix time now?
+        now = time()
+        # the time by which PIPS has to return
+        pipsreturn = now + limit
+        println("PIPS will return before ", Libc.strftime(pipsreturn))
+        # write that time in the pips option file
+        f = open("pipsnlp.parameter")
+        all = readlines(f)
+        close(f)
+        f = open("pipsnlp.parameter", "w+")
+        for line in all
+            line = replace(line, r"^max_time.*" => "max_time " * string(pipsreturn))
+            write(f, line * "\n")
+        end
+        close(f)
+    end
 end
 
 end # module StructJuMPSolverInterface
