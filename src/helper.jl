@@ -14,7 +14,7 @@ const PIPSRetCode = Dict{Int, Symbol}(
     2=>:MAX_ITS_EXCEEDED,
     3=>:INFEASIBLE,
     4=>:NEED_FEASIBILITY_RESTORATION,
-    5=>:TIME_LIMIT
+    5=>:TIME_LIMIT,
     6=>:UNKNOWN
     )
 
@@ -24,7 +24,7 @@ const PIPSRetCodeToSolverInterfaceCode = Dict{Int, Int}(
     2=>-1,
     3=>2,
     4=>7,
-    5=>9
+    5=>9,
     6=>8
     )
     
