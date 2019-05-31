@@ -32,6 +32,7 @@ ApplicationReturnStatus = Dict(
   #for PIPS specific
   7=>:Need_Feasibility_Restoration,
   8=>:Unknown,
+  9=>:Time_Limit
   #end for PIPS retcode
   -1=>:Maximum_Iterations_Exceeded,
   -2=>:Restoration_Failed,
