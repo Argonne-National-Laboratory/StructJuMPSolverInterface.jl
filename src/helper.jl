@@ -143,14 +143,6 @@ macro declare_second_stage(m,ind,code)
     end
 end
 
-macro timing(cond,code)
-    return quote
-        if $(esc(cond))
-            $(esc(code))
-       end
-    end
-end
-
 function SparseArrays.sparse(I,J,V, M, N;keepzeros=false)
     if(!keepzeros)
         return sparse(I,J,V,M,N)

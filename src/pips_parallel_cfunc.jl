@@ -183,9 +183,9 @@ function str_init_x0_wrapper(x0_ptr::Ptr{Float64}, cbd::Ptr{CallBackData})
     n0 = prob.model.get_num_cols(colid)
     x0 = unsafe_wrap(Array, x0_ptr, n0)
 
-    @timing prob.prof tic()
+    prob.prof && (t_jl_init_x0_start = time())
     prob.model.str_init_x0(colid,x0)
-    @timing prob.prof prob.t_jl_init_x0 += toq()
+    prob.prof && (prob.t_jl_init_x0 += time() - t_jl_init_x0_start)
     
     return Int32(1)
 end
@@ -215,9 +215,9 @@ function str_prob_info_wrapper(n_ptr::Ptr{Cint}, col_lb_ptr::Ptr{Float64}, col_u
     		col_ub = unsafe_wrap(Array,col_ub_ptr,0)
     		row_lb = unsafe_wrap(Array,row_lb_ptr,0)
     		row_ub = unsafe_wrap(Array,row_ub_ptr,0)
-            @timing prob.prof tic()
+            prob.prof && (t_jl_str_prob_info_start = time())
     		(n,m) = prob.model.str_prob_info(colid,flag,mode,col_lb,col_ub,row_lb,row_ub)
-            @timing prob.prof prob.t_jl_str_prob_info += toq()
+            prob.prof && (prob.t_jl_str_prob_info += time() - t_jl_str_prob_info_start)
 
     		unsafe_store!(n_ptr,convert(Cint,n)::Cint)
     		unsafe_store!(m_ptr,convert(Cint,m)::Cint)
@@ -232,9 +232,9 @@ function str_prob_info_wrapper(n_ptr::Ptr{Cint}, col_lb_ptr::Ptr{Float64}, col_u
     		row_lb = unsafe_wrap(Array,row_lb_ptr,m)
     		row_ub = unsafe_wrap(Array,row_ub_ptr,m)
 
-            @timing prob.prof tic()
+            prob.prof && (t_jl_str_prob_info_start = time())
     		prob.model.str_prob_info(colid,flag,mode,col_lb,col_ub,row_lb,row_ub)
-            @timing prob.prof prob.t_jl_str_prob_info += toq()
+            prob.prof && (prob.t_jl_str_prob_info += time() - t_jl_str_prob_info_start)
             
 
     		neq = 0
@@ -285,9 +285,9 @@ function str_eval_f_wrapper(x0_ptr::Ptr{Float64}, x1_ptr::Ptr{Float64}, obj_ptr:
     x0 = unsafe_wrap(Array, x0_ptr, n0)
     x1 = unsafe_wrap(Array, x1_ptr, n1)
 
-    @timing prob.prof tic()
+    prob.prof && (t_jl_eval_f_start = time())
     new_obj = convert(Float64, prob.model.str_eval_f(colid,x0,x1))::Float64
-    @timing prob.prof prob.t_jl_eval_f += toq()
+    prob.prof && (prob.t_jl_eval_f += time() - t_jl_eval_f_start)
     
     # Fill out the pointer
     unsafe_store!(obj_ptr, new_obj)
@@ -315,9 +315,9 @@ function str_eval_g_wrapper(x0_ptr::Ptr{Float64}, x1_ptr::Ptr{Float64}, eq_g_ptr
     new_eq_g = unsafe_wrap(Array, eq_g_ptr, neq)
     new_inq_g = unsafe_wrap(Array, inq_g_ptr, nineq)
 
-    @timing prob.prof tic()
+    prob.prof && (t_jl_eval_g_start = time())
     prob.model.str_eval_g(colid,x0,x1,new_eq_g,new_inq_g)
-    @timing prob.prof prob.t_jl_eval_g += toq()
+    prob.prof && (prob.t_jl_eval_g += time() - t_jl_eval_g_start)
     
     # Done
     return Int32(1)
@@ -343,9 +343,9 @@ function str_eval_grad_f_wrapper(x0_ptr::Ptr{Float64}, x1_ptr::Ptr{Float64}, gra
     grad_len = prob.model.get_num_cols(colid)
     new_grad_f = unsafe_wrap(Array, grad_f_ptr, grad_len)
 
-    @timing prob.prof tic()
+    prob.prof && (t_jl_eval_grad_f_start = time())
     prob.model.str_eval_grad_f(rowid,colid,x0,x1,new_grad_f)
-    @timing prob.prof prob.t_jl_eval_grad_f += toq()
+    prob.prof && (prob.t_jl_eval_grad_f += time() - t_jl_eval_grad_f_start)
     
     if prob.model.get_sense() == :Max
         new_grad_f *= -1.0
@@ -390,9 +390,9 @@ function str_eval_jac_g_wrapper(x0_ptr::Ptr{Float64}, x1_ptr::Ptr{Float64},
     		i_colptr = unsafe_wrap(Array,i_col_ptr,0)
     		i_rowidx = unsafe_wrap(Array,i_row_ptr,0)
             
-            @timing prob.prof tic()
+            prob.prof && (t_jl_str_eval_jac_g_start = time())
             (e_nz,i_nz) = prob.model.str_eval_jac_g(rowid,colid,flag,x0,x1,mode,e_rowidx,e_colptr,e_values,i_rowidx,i_colptr,i_values)
-            @timing prob.prof prob.t_jl_str_eval_jac_g += toq()
+            prob.prof && (prob.t_jl_str_eval_jac_g += time() - t_jl_str_eval_jac_g_start)
             
             unsafe_store!(e_nz_ptr,convert(Cint,e_nz)::Cint)
     		unsafe_store!(i_nz_ptr,convert(Cint,i_nz)::Cint)
@@ -409,9 +409,9 @@ function str_eval_jac_g_wrapper(x0_ptr::Ptr{Float64}, x1_ptr::Ptr{Float64},
         	i_colptr = unsafe_wrap(Array,i_col_ptr,ncol+1)
             # @show x0
             # @show x1 
-            @timing prob.prof tic()
+            prob.prof && (t_jl_eval_jac_g_start = time())
         	prob.model.str_eval_jac_g(rowid,colid,flag,x0,x1,mode,e_rowidx,e_colptr,e_values,i_rowidx,i_colptr,i_values)
-            @timing prob.prof prob.t_jl_eval_jac_g += toq()
+            prob.prof && (prob.t_jl_eval_jac_g += time() - t_jl_eval_jac_g_start)
         end
     else
         @assert flag == 1
@@ -442,7 +442,7 @@ function str_eval_h_wrapper(x0_ptr::Ptr{Float64}, x1_ptr::Ptr{Float64}, lambda_p
     colid = Int(data.col_node_id)
     flag = Int(data.flag)
     # @message @sprintf(" julia - eval_h_wrapper - %d %d %d", rowid, colid, flag)
-    @timing prob.prof begin
+    if prob.prof == true 
         if rowid == colid ==0 
             prob.n_iter += 1
             if prob.n_iter == 0
@@ -450,7 +450,6 @@ function str_eval_h_wrapper(x0_ptr::Ptr{Float64}, x1_ptr::Ptr{Float64}, lambda_p
             end
         end
     end
-    # @show prob.n_iter
 
     high = max(rowid,colid)
     low  = min(rowid,colid)
@@ -476,9 +475,9 @@ function str_eval_h_wrapper(x0_ptr::Ptr{Float64}, x1_ptr::Ptr{Float64}, lambda_p
 		colptr = unsafe_wrap(Array,col_ptr,0)
 		rowidx = unsafe_wrap(Array,row_ptr,0)
         
-        @timing prob.prof tic()
+        prob.prof && (t_jl_str_eval_h_start = time())
 		nz = prob.model.str_eval_h(rowid,colid,flag, x0,x1,obj_factor,lambda,mode,rowidx,colptr,values)
-        @timing prob.prof prob.t_jl_str_eval_h += toq()
+        prob.prof && (prob.t_jl_str_eval_h += time() - t_jl_str_eval_h_start)
         
 		unsafe_store!(nz_ptr,convert(Cint,nz)::Cint)
 		# @show "structure - ", nz
@@ -488,9 +487,9 @@ function str_eval_h_wrapper(x0_ptr::Ptr{Float64}, x1_ptr::Ptr{Float64}, lambda_p
     	rowidx = unsafe_wrap(Array, row_ptr, nz)
     	colptr = unsafe_wrap(Array, col_ptr, ncol+1)
     	# @show "value - ", nz
-        @timing prob.prof tic()
+        prob.prof && (t_jl_eval_h_start = time())
     	prob.model.str_eval_h(rowid,colid,flag,x0,x1,obj_factor,lambda,mode,rowidx,colptr,values)
-        @timing prob.prof prob.t_jl_eval_h += toq()
+        prob.prof && (prob.t_jl_eval_h += time() - t_jl_eval_h_start)
     end
     # Done
     
@@ -513,9 +512,9 @@ function str_write_solution_wrapper(x_ptr::Ptr{Float64}, y_eq_ptr::Ptr{Float64},
     x = unsafe_wrap(Array,x_ptr,nx)
     y_eq = unsafe_wrap(Array,y_eq_ptr,neq)
     y_ieq = unsafe_wrap(Array,y_ieq_ptr,nieq)
-    @timing prob.prof tic()
+    prob.prof && (t_jl_write_solution_start = time())
     prob.model.str_write_solution(rowid,x,y_eq,y_ieq)
-    @timing prob.prof prob.t_jl_write_solution += toq()
+    prob.prof && (prob.t_jl_write_solution += time() - t_jl_write_solution_start)
     
     return Int32(1)
 end
