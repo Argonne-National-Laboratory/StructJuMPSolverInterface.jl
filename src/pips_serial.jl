@@ -2,7 +2,7 @@
 # "unstructured" (and therefore serial) PIPS-NLP interface
 #
 
-module PipsNlpInterfaceSerial 
+module PipsNlpInterfaceSerial
 Base.include(PipsNlpInterfaceSerial, "pips_serial_cfunc.jl")
 
 using StructJuMP, JuMP
@@ -12,7 +12,7 @@ using SparseArrays
 import MathProgBase
 
 mutable struct NonStructJuMPModel <: ModelInterface
-    model::JuMP.Model 
+    model::JuMP.Model
     jac_I::Vector{Int}
     jac_J::Vector{Int}
     hess_I::Vector{Int}
@@ -22,6 +22,7 @@ mutable struct NonStructJuMPModel <: ModelInterface
     nzj::Int
     nzh::Int
     g_iter::Int
+    evaluatorMap::Dict{Int,MathProgBase.AbstractNLPEvaluator}
 
     write_solution::Function
     get_x0::Function
@@ -37,11 +38,16 @@ mutable struct NonStructJuMPModel <: ModelInterface
     eval_h::Function
 
     function NonStructJuMPModel(model)
-        instance = new(model, 
+        instance = new(model,
             Vector{Int}(), Vector{Int}(), Vector{Int}(), Vector{Int}(),
-            Vector{Int}(), Vector{Int}(), 0 , 0, 0
+            Vector{Int}(), Vector{Int}(), 0, 0, 0, Dict{Int,MathProgBase.AbstractNLPEvaluator}()
             )
-        
+
+	for i=0:num_scenarios(instance.model)
+	    instance.evaluatorMap[i] = JuMP.NLPEvaluator(getModel(instance.model,i))
+	    MathProgBase.initialize(instance.evaluatorMap[i], [:Grad, :Jac, :Hess])
+	end
+
         instance.write_solution = function(x)
             @assert length(x) == getTotalNumVars(m)
             m = instance.model
@@ -120,21 +126,21 @@ mutable struct NonStructJuMPModel <: ModelInterface
             # @show g_L, g_U
             return x_L, x_U, g_L, g_U
         end
-        
+
         instance.eval_f = function(x)
             m = instance.model
             obj = 0.0
             start_idx = 1
             for i=0:num_scenarios(m)
-                x_new = strip_x(m,i,x,start_idx)    
-                obj += MathProgBase.eval_f(get_nlp_evaluator(m,i),x_new)
+                x_new = strip_x(m,i,x,start_idx)
+                obj += MathProgBase.eval_f(instance.evaluatorMap[i],x_new)
                 start_idx += getNumVars(m,i)
             end
             # @printf("++++++++++++++++ eval_f  \n")
             # @show obj
             # @show x
             return obj;
-        end 
+        end
 
         instance.eval_g = function(x,g)
             m = instance.model
@@ -143,10 +149,9 @@ mutable struct NonStructJuMPModel <: ModelInterface
             g_start_idx = 1
             for i=0:num_scenarios(m)
                 x_new = strip_x(instance.model,i,x,start_idx)
-                ncon = getNumCons(m,i)    
+                ncon = getNumCons(m,i)
                 g_new = Vector{Float64}(undef, ncon)
-                e = get_nlp_evaluator(m,i)
-                MathProgBase.eval_g(e,g_new,strip_x(instance.model,i,x,start_idx))
+                MathProgBase.eval_g(instance.evaluatorMap[i],g_new,strip_x(instance.model,i,x,start_idx))
                 array_copy(g_new,1,g,g_start_idx,ncon)
                 g_start_idx += ncon
                 start_idx += getNumVars(m,i)
@@ -161,11 +166,10 @@ mutable struct NonStructJuMPModel <: ModelInterface
             start_idx = 1
             for i=0:num_scenarios(m)
                 x_new = strip_x(instance.model,i,x,start_idx)
-                e = get_nlp_evaluator(m,i)
 
                 g_f = Vector{Float64}(undef, length(x_new))
-                MathProgBase.eval_grad_f(e,g_f,x_new)
-                nx = getNumVars(m,i) 
+                MathProgBase.eval_grad_f(instance.evaluatorMap[i],g_f,x_new)
+                nx = getNumVars(m,i)
 
                 array_copy(g_f,1,grad_f,start_idx,nx)
 
@@ -183,7 +187,7 @@ mutable struct NonStructJuMPModel <: ModelInterface
         end
 
         instance.eval_jac_g = function(x,mode,rows,cols,nzvals) #x, mode, irows, kcols, values)
-            # @printf("+++++++++++ eval_jac_g %s \n", mode) 
+            # @printf("+++++++++++ eval_jac_g %s \n", mode)
             m = instance.model
             if mode==:Structure
                 mat = sparse(instance.jac_I,instance.jac_J,ones(Float64,length(instance.jac_I)))
@@ -195,11 +199,10 @@ mutable struct NonStructJuMPModel <: ModelInterface
                 value_start = 1
                 value = Vector{Float64}(undef, length(instance.jac_I))
                 for i = 0:num_scenarios(m)
-                    e = get_nlp_evaluator(m,i)
                     x_new = strip_x(instance.model,i,x,start_idx)
                     i_nz_jac = instance.nz_jac[i+1]
                     jac_g = Vector{Float64}(undef, i_nz_jac)
-                    MathProgBase.eval_jac_g(e,jac_g,x_new)
+                    MathProgBase.eval_jac_g(instance.evaluatorMap[i],jac_g,x_new)
                     array_copy(jac_g,1,value,value_start,i_nz_jac)
                     nx = getNumVars(m,i)
                     start_idx += nx
@@ -207,7 +210,7 @@ mutable struct NonStructJuMPModel <: ModelInterface
                 end
                 @assert length(instance.jac_I) == length(instance.jac_J) == length(value)
                 mat = sparse(instance.jac_I,instance.jac_J,value, getTotalNumCons(instance.model), getTotalNumVars(instance.model), keepzeros=true)
-                
+
                 jac_I = instance.jac_I
                 jac_J = instance.jac_J
                 # @printf( "m=%d; n=%d; \n", getTotalNumCons(instance.model), getTotalNumVars(instance.model))
@@ -236,7 +239,6 @@ mutable struct NonStructJuMPModel <: ModelInterface
                 lambda_start = 1
                 value = Vector{Float64}(undef, length(instance.hess_I))
                 for i = 0:num_scenarios(m)
-                    e = get_nlp_evaluator(m,i)
                     x_new = strip_x(instance.model,i,x,start_idx)
                     nc = getNumCons(m,i)
                     lambda_new = Vector{Float64}(undef, nc)
@@ -247,7 +249,7 @@ mutable struct NonStructJuMPModel <: ModelInterface
                     # @show x_new
                     # @show obj_factor
                     # @show lambda_new
-                    MathProgBase.eval_hesslag(e,h,x_new,obj_factor,lambda_new)
+                    MathProgBase.eval_hesslag(instance.evaluatorMap[i],h,x_new,obj_factor,lambda_new)
                     # @show h
                     array_copy(h,1,value,value_start,i_nz_hess)
                     nx = getNumVars(m,i)
@@ -284,9 +286,8 @@ mutable struct NonStructJuMPModel <: ModelInterface
                 reverse_map[ety[2].col] = ety[1].col #child->parent
             end
             # @show reverse_map
-            e = get_nlp_evaluator(m,i)
             # @show "after e"
-            i_jac_I, i_jac_J =  MathProgBase.jac_structure(e)
+            i_jac_I, i_jac_J =  MathProgBase.jac_structure(instance.evaluatorMap[i])
             # @show "after strct jac"
             for idx = 1:length(i_jac_J)
                 jj = i_jac_J[idx]
@@ -312,8 +313,7 @@ mutable struct NonStructJuMPModel <: ModelInterface
                 reverse_map[ety[2].col] = ety[1].col #child->parent
             end
 
-            e = get_nlp_evaluator(m,i)
-            i_hess_I, i_hess_J =  MathProgBase.hesslag_structure(e)
+            i_hess_I, i_hess_J =  MathProgBase.hesslag_structure(instance.evaluatorMap[i])
             for idx = 1:length(i_hess_I)
                 ii = i_hess_I[idx]
                 jj = i_hess_J[idx]
@@ -342,7 +342,7 @@ mutable struct NonStructJuMPModel <: ModelInterface
 
             offset += getNumVars(m,i)
         end
-        return instance  
+        return instance
     end
 end
 
@@ -366,7 +366,7 @@ function structJuMPSolve(model; suppress_warmings=false,kwargs...)
     nm.get_x0(prob.x)
     status = PipsNlpSolverSerial.solveProblem(prob)
     nm.write_solution(prob.x)
-    
+
     return PIPSRetCodeToSolverInterfaceCode[status]
 end
 
