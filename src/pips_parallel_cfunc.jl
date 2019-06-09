@@ -160,6 +160,7 @@ struct CallBackData
     flag::Cint  
 end
 
+
 export  ModelInterface, FakeModel,
         createProblemStruct, solveProblemStruct
 
@@ -622,6 +623,29 @@ function t_reset(prob::PipsNlpProblemStruct)
     prob.t_jl_str_eval_h = 0.0
     prob.t_jl_write_solution = 0.0
     return total
+end
+
+function reload_pips()
+  if @isdefined loadcounter
+    loadcounter = loadcounter + 1
+  else
+    loadcounter = 1 
+  end
+  Libdl.dlclose(libparpipsnlp)
+  sharedLib=replace(ENV["PIPS_NLP_PAR_SHARED_LIB"], r"libparpipsnlp.so" => s"libparpipsnlpcopy" * string(loadcounter) * ".so")
+
+  rank = MPI.Comm_rank(MPI.COMM_WORLD)
+  if rank == 0
+    cp(ENV["PIPS_NLP_PAR_SHARED_LIB"], sharedLib, force=true)
+  end
+  MPI.Barrier(MPI.COMM_WORLD)
+  
+  # Explicitly check if the file exists. dlopen sometimes does not throw an 
+  # error for invalid filenames, resulting in a seg fault)
+  if(!isfile(sharedLib))
+    error(string("The specified shared library ([", sharedLib, "]) does not exist"))
+  end  
+  global libparpipsnlp=Libdl.dlopen(sharedLib)
 end
 
 end
