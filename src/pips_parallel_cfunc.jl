@@ -632,7 +632,7 @@ function reload_pips()
     loadcounter = 1 
   end
   Libdl.dlclose(libparpipsnlp)
-  sharedLib=replace(ENV["PIPS_NLP_PAR_SHARED_LIB"], r"libparpipsnlp.so" => s"libparpipsnlpcopy" * string(loadcounter) * ".so")
+  sharedLib=replace(ENV["PIPS_NLP_PAR_SHARED_LIB"], r"libparpipsnlp" => s"libparpipsnlpcopy" * string(loadcounter))
 
   rank = MPI.Comm_rank(MPI.COMM_WORLD)
   if rank == 0
