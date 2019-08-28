@@ -191,6 +191,51 @@ function str_init_x0_wrapper(x0_ptr::Ptr{Float64}, cbd::Ptr{CallBackData})
     return Int32(1)
 end
 
+function str_init_dual_xl_wrapper(xl_ptr::Ptr{Float64}, cbd::Ptr{CallBackData})
+    data = unsafe_load(cbd)
+    userdata = data.prob
+    prob = unsafe_pointer_to_objref(userdata)::PipsNlpProblemStruct
+    rowid = Int(Int(data.row_node_id))
+    colid = Int(Int(data.col_node_id))
+    @assert(rowid == colid)
+    n = prob.model.get_num_cols(colid)
+    xl = unsafe_wrap(Array, xl_ptr, n)
+    
+    prob.model.str_init_dual_xl(colid,xl)
+    return Int32(1)
+end
+
+function str_init_dual_xu_wrapper(xu_ptr::Ptr{Float64}, cbd::Ptr{CallBackData})
+    data = unsafe_load(cbd)
+    userdata = data.prob
+    prob = unsafe_pointer_to_objref(userdata)::PipsNlpProblemStruct
+    rowid = Int(Int(data.row_node_id))
+    colid = Int(Int(data.col_node_id))
+    @assert(rowid == colid)
+    n = prob.model.get_num_cols(colid)
+    xu = unsafe_wrap(Array, xu_ptr, n)
+    
+    prob.model.str_init_dual_xu(colid,xu)
+    return Int32(1)
+end
+function str_init_dual_yz_wrapper(y_ptr::Ptr{Float64}, z_ptr::Ptr{Float64}, cbd::Ptr{CallBackData})
+    data = unsafe_load(cbd)
+    userdata = data.prob
+    prob = unsafe_pointer_to_objref(userdata)::PipsNlpProblemStruct
+    rowid = Int(Int(data.row_node_id))
+    colid = Int(Int(data.col_node_id))
+    p = prob.model.iMap[rowid]
+    numeq = length(p[1])
+    numieq = length(p[2])
+    y = unsafe_wrap(Array, y_ptr, numeq)
+    z = unsafe_wrap(Array, z_ptr, numieq)
+    
+    prob.model.str_init_dual_y(colid,y)
+    prob.model.str_init_dual_z(colid,z)
+    return Int32(1)
+end
+
+
 # prob info (prob_info)
 function str_prob_info_wrapper(n_ptr::Ptr{Cint}, col_lb_ptr::Ptr{Float64}, col_ub_ptr::Ptr{Float64}, m_ptr::Ptr{Cint}, row_lb_ptr::Ptr{Float64}, row_ub_ptr::Ptr{Float64}, cbd::Ptr{CallBackData})
     # @show " julia - str_prob_info_wrapper "
@@ -523,9 +568,14 @@ end
 # C function wrappers
 ###########################################################################
 
-function createProblemStruct(comm::MPI.Comm, model::ModelInterface, prof::Bool)
+function createProblemStruct(comm::MPI.Comm, model::ModelInterface, prof::Bool, warmstart::Bool)
 	# println(" createProblemStruct  -- julia")
 	str_init_x0_cb = @cfunction(str_init_x0_wrapper, Cint, (Ptr{Float64}, Ptr{CallBackData}) )
+    if warmstart == true
+        str_init_dual_yz_cb = @cfunction(str_init_dual_yz_wrapper, Cint, (Ptr{Float64}, Ptr{Float64}, Ptr{CallBackData}) )
+        str_init_dual_xl_cb = @cfunction(str_init_dual_xl_wrapper, Cint, (Ptr{Float64}, Ptr{CallBackData}) )
+        str_init_dual_xu_cb = @cfunction(str_init_dual_xu_wrapper, Cint, (Ptr{Float64}, Ptr{CallBackData}) )
+    end
     str_prob_info_cb = @cfunction(str_prob_info_wrapper, Cint, (Ptr{Cint}, Ptr{Float64}, Ptr{Float64}, Ptr{Cint}, Ptr{Float64}, Ptr{Float64}, Ptr{CallBackData}) )
     str_eval_f_cb = @cfunction(str_eval_f_wrapper,Cint, (Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{CallBackData}) )
     str_eval_g_cb = @cfunction(str_eval_g_wrapper,Cint, (Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{CallBackData}) )
@@ -540,24 +590,50 @@ function createProblemStruct(comm::MPI.Comm, model::ModelInterface, prof::Bool)
     # println(" callback created ")
     prob = PipsNlpProblemStruct(comm, model, prof)
     # @show prob
-    ret = ccall(Libdl.dlsym(libparpipsnlp,:CreatePipsNlpProblemStruct),Ptr{Nothing},
-            (MPI.CComm, 
-            Cint, Ptr{Nothing}, Ptr{Nothing}, 
-	    Ptr{Nothing}, Ptr{Nothing}, Ptr{Nothing}, 
-	    Ptr{Nothing}, Ptr{Nothing}, Ptr{Nothing},Any
-            ),
-            MPI.CComm(comm), 
-            model.get_num_scen(),
-            str_init_x0_cb,
-            str_prob_info_cb,
-            str_eval_f_cb, 
-            str_eval_g_cb,
-            str_eval_grad_f_cb, 
-            str_eval_jac_g_cb, 
-            str_eval_h_cb,
-            str_write_solution_cb,
-            prob
-            )
+    if warmstart == true
+        ret = ccall(Libdl.dlsym(libparpipsnlp, :CreatePipsNlpProblemStructWS),Ptr{Nothing},
+        (MPI.CComm, 
+        Cint, Ptr{Nothing}, Ptr{Nothing}, 
+        Ptr{Nothing}, Ptr{Nothing}, Ptr{Nothing}, 
+        Ptr{Nothing}, Ptr{Nothing}, Ptr{Nothing}, 
+        Ptr{Nothing}, Ptr{Nothing}, Ptr{Nothing},Any
+        ),
+        MPI.CComm(comm), 
+        model.get_num_scen(),
+        str_init_x0_cb,
+        str_init_dual_yz_cb,
+        str_init_dual_xl_cb,
+        str_init_dual_xu_cb,
+        str_prob_info_cb,
+        str_eval_f_cb, 
+        str_eval_g_cb,
+        str_eval_grad_f_cb, 
+        str_eval_jac_g_cb, 
+        str_eval_h_cb,
+        str_write_solution_cb,
+        prob
+        )
+    else
+        ret = ccall(Libdl.dlsym(libparpipsnlp, :CreatePipsNlpProblemStruct),Ptr{Nothing},
+        (MPI.CComm, 
+        Cint, Ptr{Nothing}, Ptr{Nothing}, 
+        Ptr{Nothing}, Ptr{Nothing}, Ptr{Nothing}, 
+        Ptr{Nothing}, Ptr{Nothing}, Ptr{Nothing},Any
+        ),
+        MPI.CComm(comm), 
+        model.get_num_scen(),
+        str_init_x0_cb,
+        str_prob_info_cb,
+        str_eval_f_cb, 
+        str_eval_g_cb,
+        str_eval_grad_f_cb, 
+        str_eval_jac_g_cb, 
+        str_eval_h_cb,
+        str_write_solution_cb,
+        prob
+        )
+    end
+          
     # println(" ccall CreatePipsNlpProblemStruct done ")
     # @show ret   
     

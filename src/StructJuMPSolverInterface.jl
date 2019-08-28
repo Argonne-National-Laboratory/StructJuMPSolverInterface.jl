@@ -7,6 +7,7 @@ module StructJuMPSolverInterface
 import MPI
 
 using Printf
+using JuMP
 
 # Struct Model interface
 abstract type ModelInterface end
@@ -15,6 +16,13 @@ abstract type ModelInterface end
 export ModelInterface, KnownSolvers, sj_solve, getModel, getVarValue, getVarValues, getNumVars, 
         getNumCons, getTotalNumVars, getTotalNumCons, getLocalBlocksIds, getLocalChildrenIds,
         getObjectiveVal, setTimeLimit
+        
+export setdualxu, setdualxl, setdualy, setdualz, dualxl, dualxu, dualy, dualz
+
+dualxl = Dict{Tuple{JuMP.Model,JuMP.Variable},Float64}()
+dualxu = Dict{Tuple{JuMP.Model,JuMP.Variable},Float64}()
+dualy = Dict{Tuple{JuMP.Model,Int},Float64}()
+dualz = Dict{Tuple{JuMP.Model,Int},Float64}()
 
 const KnownSolvers = Dict{AbstractString,Function}();
 
@@ -206,6 +214,26 @@ function setTimeLimit(limit)
         end
         close(f)
     end
+end
+
+function setdualxu(model::JuMP.Model, variable::JuMP.Variable, value::Float64)
+    tup = (model, variable)
+    dualxu[tup] = value 
+end
+
+function setdualxl(model::JuMP.Model, variable::JuMP.Variable, value::Float64)
+    tup = (model, variable)
+    dualxl[tup] = value 
+end
+
+function setdualy(model::JuMP.Model, constraint::ConstraintRef, value::Float64)
+    tup = (model, constraint.idx)
+    dualy[tup] = value 
+end
+
+function setdualz(model::JuMP.Model, constraint::ConstraintRef, value::Float64)
+    tup = (model, constraint.idx)
+    dualz[tup] = value 
 end
 
 end # module StructJuMPSolverInterface

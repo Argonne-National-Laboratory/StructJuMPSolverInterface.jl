@@ -79,6 +79,10 @@ mutable struct StructJuMPModel <: ModelInterface
     set_num_ineq_cons::Function
 
     str_init_x0::Function
+    str_init_dual_xl::Function
+    str_init_dual_xu::Function
+    str_init_dual_y::Function
+    str_init_dual_z::Function
     str_prob_info::Function
     str_eval_f::Function
     str_eval_g::Function
@@ -155,6 +159,73 @@ mutable struct StructJuMPModel <: ModelInterface
             end
             # @show x0;
         end  
+        
+        instance.str_init_dual_xl = function(id,xl)
+            @assert(id in getLocalBlocksIds(instance.internalModel))
+            mm = getModel(instance.internalModel,id)
+            nvar = getNumVars(instance.internalModel,id)
+            @assert length(xl) == nvar
+            
+            for i in 1:nvar 
+                key = (mm, Variable(mm,i))
+                if haskey(dualxl,key)
+                    v = dualxl[(mm,Variable(mm,i))]  
+                else
+                    v = 1.0
+                end
+                xl[i] = v 
+            end
+        end  
+        
+        instance.str_init_dual_xu = function(id,xu)
+            @assert(id in getLocalBlocksIds(instance.internalModel))
+            mm = getModel(instance.internalModel,id)
+            nvar = getNumVars(instance.internalModel,id)
+            @assert length(xu) == nvar
+            
+            for i in 1:nvar 
+                key = (mm, Variable(mm,i))
+                if haskey(dualxu,key)
+                    v = dualxu[(mm,Variable(mm,i))]  
+                else
+                    v = 1.0
+                end
+                xu[i] = v 
+            end
+        end  
+        
+        instance.str_init_dual_y = function(id,y)
+            @assert(id in getLocalBlocksIds(instance.internalModel))
+            mm = getModel(instance.internalModel,id)
+            (eq_idx, ieq_idx) = instance.iMap[id]
+            
+            for i in eq_idx 
+                key = (mm, i[1])
+                if haskey(dualy,key)
+                    v = dualy[(mm,i[1])]  
+                else
+                    v = 0.0
+                end
+                y[i[2]] = v 
+            end
+        end  
+        
+        instance.str_init_dual_z = function(id,z)
+            @assert(id in getLocalBlocksIds(instance.internalModel))
+            mm = getModel(instance.internalModel,id)
+            (eq_idx, ieq_idx) = instance.iMap[id]
+            
+            for i in ieq_idx 
+                key = (mm, i[1])
+                if haskey(dualz,key)
+                    v = dualz[(mm,i[1])]  
+                else
+                    v = 0.0
+                end
+                z[i[2]] = v 
+            end
+        end  
+        
 
         instance.str_prob_info = function(id,flag,mode,clb,cub,rlb,rub)
             # @show id
@@ -769,14 +840,14 @@ end
 # Linking with PIPS Julia Structure interface
 ######
 
-function structJuMPSolve(model; with_prof=false, suppress_warmings=false,kwargs...)
+function structJuMPSolve(model; with_prof=false, suppress_warmings=false, warmstart=false, kwargs...)
     t_sj_lifetime = time()    
     
     comm = getStructure(model).mpiWrapper.comm
     
     t_sj_model_init = time()   
-
-    prob = PipsNlpSolver.createProblemStruct(comm, StructJuMPModel(model,with_prof), with_prof)
+    @show warmstart
+    prob = PipsNlpSolver.createProblemStruct(comm, StructJuMPModel(model,with_prof), with_prof, warmstart)
 
     t_sj_model_init = time() - t_sj_model_init
 
