@@ -220,7 +220,7 @@ mutable struct StructJuMPModel <: ModelInterface
                 if haskey(dualz,key)
                     v = dualz[(mm,i[1])]  
                 else
-                    v = 0.001
+                    v = 0.0
                 end
                 z[i[2]] = v 
             end
