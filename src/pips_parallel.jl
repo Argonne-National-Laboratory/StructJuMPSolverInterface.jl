@@ -366,13 +366,13 @@ mutable struct StructJuMPModel <: ModelInterface
             @assert rowid >= colid
             if(mode == :Structure)
                 if !haskey(matJac, rowid)
+                    mm = getModel(m,rowid)
                     e = instance.evaluatorMap[rowid]
 
                     instance.prof && (t_jump_start = time())
-                    jac_I,jac_J = MathProgBase.jac_structure(e)
+                    jac_I,jac_J = MathProgBase.numconstr(mm) > 0 ? MathProgBase.jac_structure(e) : (Int[], Int[])
                     instance.prof && (instance.t_jump += time() - t_jump_start)
                     
-                    mm = getModel(m,rowid)
                     matJac[rowid] = MatStorage(jac_I,jac_J, MathProgBase.numconstr(mm),MathProgBase.numvar(mm))
                     @assert length(jac_I) == length(matJac[rowid].value)
                 end
@@ -546,8 +546,10 @@ mutable struct StructJuMPModel <: ModelInterface
                     e = instance.evaluatorMap[colid]
                     mm = getModel(m,rowid)
 
-                    instance.prof && (t_jump_start = time())
-                    (h_J,h_I) = MathProgBase.hesslag_structure(e) # upper trangular
+                    instance.prof && (t_jump_start = time())        
+                    features = MathProgBase.features_available(e)
+                    has_hessian = (:Hess in features)
+                    (h_J,h_I) = has_hessian ? MathProgBase.hesslag_structure(e) : (Int[], Int[]) # upper trangular
                     instance.prof && (instance.t_jump += time() - t_jump_start)
                     
                     matHess[colid] = MatStorage(h_I,h_J,MathProgBase.numvar(mm),MathProgBase.numvar(mm))              
