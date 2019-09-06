@@ -2,7 +2,7 @@
 # Interface for PIPS-NLP parallel (structured interface)
 #
 
-module PipsNlpInterface 
+module PipsNlpInterface
 Base.include(PipsNlpInterface, "pips_parallel_cfunc.jl")
 
 # using PipsNlpSolver
@@ -72,7 +72,7 @@ mutable struct StructJuMPModel <: ModelInterface
     get_num_ineq_lcons::Function
 
     set_status::Function
-    
+
     set_num_rows::Function
     set_num_cols::Function
     set_num_eq_cons::Function
@@ -108,9 +108,9 @@ mutable struct StructJuMPModel <: ModelInterface
             0.0,0.0,0.0,0.0,0.0,
             0,0,0
             )
-        
+
         initialization(instance)
- 
+
         instance.get_num_scen = function()
             return num_scenarios(instance.internalModel)
         end
@@ -152,80 +152,80 @@ mutable struct StructJuMPModel <: ModelInterface
             mm = getModel(instance.internalModel,id)
             nvar = getNumVars(instance.internalModel,id)
             @assert length(x0) == nvar
-            
+
             for i=1:nvar
                 x0[i] = getvalue(Variable(mm,i))
                 isnan(x0[i]) ? x0[i]=1.0 : nothing
             end
             # @show x0;
-        end  
-        
+        end
+
         instance.str_init_dual_xl = function(id,xl)
             @assert(id in getLocalBlocksIds(instance.internalModel))
             mm = getModel(instance.internalModel,id)
             nvar = getNumVars(instance.internalModel,id)
             @assert length(xl) == nvar
-            
-            for i in 1:nvar 
+
+            for i in 1:nvar
                 key = (mm, Variable(mm,i))
                 if haskey(dualxl,key)
-                    v = dualxl[(mm,Variable(mm,i))]  
+                    v = dualxl[(mm,Variable(mm,i))]
                 else
                     v = 1.0
                 end
-                xl[i] = v 
+                xl[i] = v
             end
-        end  
-        
+        end
+
         instance.str_init_dual_xu = function(id,xu)
             @assert(id in getLocalBlocksIds(instance.internalModel))
             mm = getModel(instance.internalModel,id)
             nvar = getNumVars(instance.internalModel,id)
             @assert length(xu) == nvar
-            
-            for i in 1:nvar 
+
+            for i in 1:nvar
                 key = (mm, Variable(mm,i))
                 if haskey(dualxu,key)
-                    v = dualxu[(mm,Variable(mm,i))]  
+                    v = dualxu[(mm,Variable(mm,i))]
                 else
                     v = 1.0
                 end
-                xu[i] = v 
+                xu[i] = v
             end
-        end  
-        
+        end
+
         instance.str_init_dual_y = function(id,y)
             @assert(id in getLocalBlocksIds(instance.internalModel))
             mm = getModel(instance.internalModel,id)
             (eq_idx, ieq_idx) = instance.iMap[id]
-            
-            for i in eq_idx 
+
+            for i in eq_idx
                 key = (mm, i[1])
                 if haskey(dualy,key)
-                    v = dualy[(mm,i[1])]  
+                    v = dualy[(mm,i[1])]
                 else
                     v = 0.0
                 end
-                y[i[2]] = v 
+                y[i[2]] = v
             end
-        end  
-        
+        end
+
         instance.str_init_dual_z = function(id,z)
             @assert(id in getLocalBlocksIds(instance.internalModel))
             mm = getModel(instance.internalModel,id)
             (eq_idx, ieq_idx) = instance.iMap[id]
-            
-            for i in ieq_idx 
+
+            for i in ieq_idx
                 key = (mm, i[1])
                 if haskey(dualz,key)
-                    v = dualz[(mm,i[1])]  
+                    v = dualz[(mm,i[1])]
                 else
                     v = 0.0
                 end
-                z[i[2]] = v 
+                z[i[2]] = v
             end
-        end  
-        
+        end
+
 
         instance.str_prob_info = function(id,flag,mode,clb,cub,rlb,rub)
             # @show id
@@ -233,7 +233,7 @@ mutable struct StructJuMPModel <: ModelInterface
                 if flag == 0
                     nn = getNumVars(instance.internalModel,id)
                     mm = getNumCons(instance.internalModel,id)
-                else 
+                else
                     @assert flag == 1
                     nn = getNumVars(instance.internalModel,id)
                     # mm = getNumLinkCons() #TODO: this is not yet supported
@@ -246,7 +246,7 @@ mutable struct StructJuMPModel <: ModelInterface
                     # @show length(clb),length(cub)
                     mm = getModel(instance.internalModel,id)
                     nvar = getNumVars(instance.internalModel,id)
-                    @assert length(clb) == nvar 
+                    @assert length(clb) == nvar
                     @assert length(cub) == nvar
                     array_copy(mm.colUpper, 1, cub, 1, nvar)
                     array_copy(mm.colLower, 1, clb, 1, nvar)
@@ -273,7 +273,7 @@ mutable struct StructJuMPModel <: ModelInterface
             else
                 @assert false mode
             end
-        end 
+        end
 
 
         instance.str_eval_f = function(id,x0,x1)
@@ -293,20 +293,20 @@ mutable struct StructJuMPModel <: ModelInterface
         instance.str_eval_g = function(id::Int,x0::Vector{Float64},x1::Vector{Float64}, new_eq_g::Vector{Float64}, new_inq_g::Vector{Float64})
             # x0, x1 = load_x("pips", instance.n_iter)
             instance.prof && (t_eval_g_start = time())
-            
+
             e = instance.evaluatorMap[id]
             g = Vector{Float64}(undef, getNumCons(instance.internalModel,id))
-            
+
             instance.prof && (t_jump_start = time())
             MathProgBase.eval_g(e,g,build_x(instance.internalModel,id,x0,x1))
             instance.prof && (instance.t_jump += time() - t_jump_start)
-            
+
             p = instance.iMap[id]
-            eq_idx = p[1] 
-            ieq_idx = p[2] 
+            eq_idx = p[1]
+            ieq_idx = p[2]
             @assert length(new_eq_g) == length(eq_idx)
             @assert length(ieq_idx) == length(new_inq_g)
-            
+
             instance.prof && (t_itermap_eval_g_start = time())
             for i in eq_idx
                 new_eq_g[i[2]] = g[i[1]]
@@ -317,8 +317,8 @@ mutable struct StructJuMPModel <: ModelInterface
                 new_inq_g[i[2]] = g[i[1]]
             end
             instance.prof && (instance.t_itermap_eval_g += time() - t_itermap_eval_g_start)
-            
-            if instance.prof == true 
+
+            if instance.prof == true
                 instance.prof && (instance.t_eval_g += time() - t_eval_g_start)
                 instance.n_eval_g += 1
             end
@@ -328,15 +328,15 @@ mutable struct StructJuMPModel <: ModelInterface
             # x0, x1 = load_x("pips", instance.n_iter)
             m = instance.internalModel
             @assert rowid >= colid
-            @assert sum(new_grad_f) == 0.0 
+            @assert sum(new_grad_f) == 0.0
             e = instance.evaluatorMap[rowid]
             x = build_x(m,rowid,x0,x1)
             g = Vector{Float64}(undef, length(x))
-            
+
             instance.prof && (t_jump_start = time())
             MathProgBase.eval_grad_f(e,g,x)
             instance.prof && (instance.t_jump += time() - t_jump_start)
-            
+
             @assert length(g) == MathProgBase.numvar(getModel(m,rowid))
             @assert length(new_grad_f) == getNumVars(m,colid)
 
@@ -372,14 +372,14 @@ mutable struct StructJuMPModel <: ModelInterface
                     instance.prof && (t_jump_start = time())
                     jac_I,jac_J = MathProgBase.numconstr(mm) > 0 ? MathProgBase.jac_structure(e) : (Int[], Int[])
                     instance.prof && (instance.t_jump += time() - t_jump_start)
-                    
+
                     matJac[rowid] = MatStorage(jac_I,jac_J, MathProgBase.numconstr(mm),MathProgBase.numvar(mm))
                     @assert length(jac_I) == length(matJac[rowid].value)
                 end
                 mat = matJac[rowid]
                 jac_I = mat.rowIdx
                 jac_J = mat.colIdx
-                
+
                 p = Pair{Int,Int}(rowid,colid)
                 if !haskey(matEqJac,p)
                     @assert !haskey(matIeqJac,p)
@@ -412,8 +412,8 @@ mutable struct StructJuMPModel <: ModelInterface
                 end
                 matEq = matEqJac[p]
                 matIeq = matIeqJac[p]
-                fill!(matEq.value,1.0) 
-                fill!(matIeq.value,1.0) 
+                fill!(matEq.value,1.0)
+                fill!(matIeq.value,1.0)
                 @assert matEq.m + matIeq.m == mat.m
 
                 instance.prof && (t_jac_spconv_start = time())
@@ -431,7 +431,7 @@ mutable struct StructJuMPModel <: ModelInterface
 
                 nnzEqJac = length(eq_jac.nzval)
                 nnzIeqJac = length(ieq_jac.nzval)
-    
+
                 return nnzEqJac,nnzIeqJac
             elseif(mode == :Values)
                 p = Pair{Int,Int}(rowid,colid)
@@ -448,13 +448,13 @@ mutable struct StructJuMPModel <: ModelInterface
                     instance.prof && (t_jump_start = time())
                     MathProgBase.eval_jac_g(e,jac_g,build_x(m,rowid,x0,x1))
                     instance.prof && (instance.t_jump += time() - t_jump_start)
-                    
+
                     mat.isVal = true
                 end
 
                 (eq_idx, ieq_idx) = instance.iMap[rowid]
                 var_idx = get_jac_col_idx_map(m,rowid,colid,jMap)
-                
+
                 matEq =  matEqJac[p]
                 matIeq = matIeqJac[p]
                 eq_jac_g = matEq.value
@@ -487,7 +487,7 @@ mutable struct StructJuMPModel <: ModelInterface
                         instance.prof && (instance.t_jac_spconv += time() - t_jac_spconv_start)
                         instance.n_jac_spconv += 1
                     end
-                
+
                     array_copy(eq_jac.rowval,1,e_rowidx,1,length(eq_jac.rowval))
                     array_copy(eq_jac.colptr,1,e_colptr,1,length(eq_jac.colptr))
                     array_copy(eq_jac.nzval, 1,e_values,1,length(eq_jac.nzval))
@@ -505,17 +505,17 @@ mutable struct StructJuMPModel <: ModelInterface
                         instance.prof && (instance.t_jac_spconv += time() - t_jac_spconv_start)
                         instance.n_jac_spconv += 1
                     end
-                    
+
                     array_copy(ieq_jac.rowval,1,i_rowidx,1,length(ieq_jac.rowval))
                     array_copy(ieq_jac.colptr,1,i_colptr,1,length(ieq_jac.colptr))
                     array_copy(ieq_jac.nzval, 1,i_values,1,length(ieq_jac.nzval))
-                    
+
                     filename = string("jacieq_",rowid,"_",colid)
                     write_mat_to_file(filename,ieq_jac)
                     convert_to_c_idx(i_rowidx)
                     convert_to_c_idx(i_colptr)
                 end
-                
+
                 if(flag == 2)
                     mat.isVal = false
                 end
@@ -540,24 +540,26 @@ mutable struct StructJuMPModel <: ModelInterface
             matHessMap = instance.matHessMap
             hcMap = instance.hcMap
             hrMap = instance.hrMap
+
             @assert rowid<=num_scenarios(m) && colid <=num_scenarios(m)
+
             if(mode == :Structure)
                 if !haskey(matHess,colid)
                     e = instance.evaluatorMap[colid]
                     mm = getModel(m,rowid)
-
-                    instance.prof && (t_jump_start = time())        
                     features = MathProgBase.features_available(e)
                     has_hessian = (:Hess in features)
+
+                    instance.prof && (t_jump_start = time())
                     (h_J,h_I) = has_hessian ? MathProgBase.hesslag_structure(e) : (Int[], Int[]) # upper trangular
                     instance.prof && (instance.t_jump += time() - t_jump_start)
-                    
-                    matHess[colid] = MatStorage(h_I,h_J,MathProgBase.numvar(mm),MathProgBase.numvar(mm))              
+
+                    matHess[colid] = MatStorage(h_I,h_J,MathProgBase.numvar(mm),MathProgBase.numvar(mm))
                 end
                 mat = matHess[colid]
                 h_I = mat.rowIdx
                 h_J = mat.colIdx
-                
+
                 p = Pair{Int,Int}(rowid,colid)
                 if !haskey(matHessMap,p)
                     if rowid == colid  #diagonal
@@ -608,7 +610,7 @@ mutable struct StructJuMPModel <: ModelInterface
                         #structure for root contribution
                         col_var_idx,row_var_idx = get_h_col_idx_map(m,colid,rowid,hcMap,hrMap)
                         # @show col_var_idx
-                        # @show row_var_idx     
+                        # @show row_var_idx
                         new_h_I = Vector{Int}()
                         new_h_J = Vector{Int}()
                         for i = 1:length(h_I)
@@ -646,25 +648,27 @@ mutable struct StructJuMPModel <: ModelInterface
                 return length(laghess.nzval)
             elseif(mode == :Values)
                 p = Pair{Int,Int}(rowid,colid)
-                if rowid == colid 
+                if rowid == colid
                     @assert haskey(matHess,rowid)
                     mat = matHess[rowid]
                     if !mat.isVal
                         e = instance.evaluatorMap[rowid]
-                        (eq_idx, ieq_idx) = instance.iMap[rowid]
-                        numeq = length(eq_idx)
-                        lam_new = Vector{Float64}(undef, length(lambda))
-                        for i in eq_idx
-                            lam_new[i[1]] = lambda[i[2]]
+                        features = MathProgBase.features_available(e)
+                        if (:Hess in features)
+                            (eq_idx, ieq_idx) = instance.iMap[rowid]
+                            numeq = length(eq_idx)
+                            lam_new = Vector{Float64}(undef, length(lambda))
+                            for i in eq_idx
+                                lam_new[i[1]] = lambda[i[2]]
+                            end
+                            for i in ieq_idx
+                                lam_new[i[1]] = lambda[i[2]+numeq]
+                            end
+                            x = build_x(m,rowid,x0,x1)
+                            instance.prof && (t_jump_start = time())
+                            has_hessian && MathProgBase.eval_hesslag(e,mat.value,x,obj_factor,lam_new)
+                            instance.prof && (instance.t_jump += time() - t_jump_start)
                         end
-                        for i in ieq_idx
-                            lam_new[i[1]] = lambda[i[2]+numeq]
-                        end
-                        x = build_x(m,rowid,x0,x1)
-                        instance.prof && (t_jump_start = time())
-                        MathProgBase.eval_hesslag(e,mat.value,x,obj_factor,lam_new)
-                        instance.prof && (instance.t_jump += time() - t_jump_start)
-                        
                         mat.isVal = true
                     end
                     h_I = mat.rowIdx
@@ -695,21 +699,23 @@ mutable struct StructJuMPModel <: ModelInterface
                     mat = matHess[colid]
                     if !mat.isVal
                         e = instance.evaluatorMap[colid]
-                        x = build_x(m,colid,x0,x1)
-                        (eq_idx, ieq_idx) = instance.iMap[colid]
-                        numeq = length(eq_idx)
-                        lam_new = Vector{Float64}(undef, length(lambda))
-                        for i in eq_idx
-                            lam_new[i[1]] = lambda[i[2]]
-                        end
-                        for i in ieq_idx
-                            lam_new[i[1]] = lambda[i[2]+numeq]
-                        end
+                        features = MathProgBase.features_available(e)
+                        if (:Hess in features)
+                            x = build_x(m,colid,x0,x1)
+                            (eq_idx, ieq_idx) = instance.iMap[colid]
+                            numeq = length(eq_idx)
+                            lam_new = Vector{Float64}(undef, length(lambda))
+                            for i in eq_idx
+                                lam_new[i[1]] = lambda[i[2]]
+                            end
+                            for i in ieq_idx
+                                lam_new[i[1]] = lambda[i[2]+numeq]
+                            end
 
-                        instance.prof && (t_jump_start = time())
-                        MathProgBase.eval_hesslag(e,mat.value,x,obj_factor,lam_new)
-                        instance.prof && (instance.t_jump += time() - t_jump_start)
-                        
+                            instance.prof && (t_jump_start = time())
+                            MathProgBase.eval_hesslag(e,mat.value,x,obj_factor,lam_new)
+                            instance.prof && (instance.t_jump += time() - t_jump_start)
+                        end
                         mat.isVal = true
                     end
                     h_I = mat.rowIdx
@@ -717,7 +723,7 @@ mutable struct StructJuMPModel <: ModelInterface
                     h = mat.value
                     # @show h_I, h_J
                     # @show h
-                    
+
                     col_var_idx,row_var_idx = get_h_col_idx_map(m,0, colid,hcMap,hrMap)
                     matP = matHessMap[p]
                     matPi = 1
@@ -731,8 +737,8 @@ mutable struct StructJuMPModel <: ModelInterface
                     end
                     str_laghess = sparse(matP.rowIdx,matP.colIdx,matP.value,matP.m,matP.n,keepzeros = true)
                     # @printf("m=%d;n=%d; \n",getNumVars(m,rowid),getNumVars(m,rowid))
-                    # @show new_h_I, new_h_J, new_h 
-                    # @printf(" hess%d%d=sparse(new_h_I,new_h_J,new_h, m, n); \n",rowid,colid)                   
+                    # @show new_h_I, new_h_J, new_h
+                    # @printf(" hess%d%d=sparse(new_h_I,new_h_J,new_h, m, n); \n",rowid,colid)
                     # @show str_laghess
                     array_copy(str_laghess.rowval,1,rowidx,1,length(str_laghess.rowval))
                     array_copy(str_laghess.colptr,1,colptr,1,length(str_laghess.colptr))
@@ -743,20 +749,22 @@ mutable struct StructJuMPModel <: ModelInterface
                     mat = matHess[rowid]
                     if !mat.isVal
                         e = instance.evaluatorMap[rowid]
-                        x = build_x(m,rowid,x0,x1)
-                        (eq_idx, ieq_idx) = instance.iMap[rowid]
-                        numeq = length(eq_idx)
-                        lam_new = Vector{Float64}(undef, length(lambda))
-                        for i in eq_idx
-                            lam_new[i[1]] = lambda[i[2]]
+                        features = MathProgBase.features_available(e)
+                        if (:Hess in features)
+                            x = build_x(m,rowid,x0,x1)
+                            (eq_idx, ieq_idx) = instance.iMap[rowid]
+                            numeq = length(eq_idx)
+                            lam_new = Vector{Float64}(undef, length(lambda))
+                            for i in eq_idx
+                                lam_new[i[1]] = lambda[i[2]]
+                            end
+                            for i in ieq_idx
+                                lam_new[i[1]] = lambda[i[2]+numeq]
+                            end
+                            instance.prof && (t_jump_start = time())
+                            MathProgBase.eval_hesslag(e,mat.value,x,obj_factor,lam_new)
+                            instance.prof && (instance.t_jump += time() - t_jump_start)
                         end
-                        for i in ieq_idx
-                            lam_new[i[1]] = lambda[i[2]+numeq]
-                        end
-                        instance.prof && (t_jump_start = time())
-                        MathProgBase.eval_hesslag(e,mat.value,x,obj_factor,lam_new)
-                        instance.prof && (instance.t_jump += time() - t_jump_start)
-                        
                         mat.isVal = true
                     end
                     h_I = mat.rowIdx
@@ -788,21 +796,21 @@ mutable struct StructJuMPModel <: ModelInterface
                     end
                     array_copy(str_laghess.rowval,1,rowidx,1,length(str_laghess.rowval))
                     array_copy(str_laghess.colptr,1,colptr,1,length(str_laghess.colptr))
-                    array_copy(str_laghess.nzval, 1,values,1,length(str_laghess.nzval)) 
+                    array_copy(str_laghess.nzval, 1,values,1,length(str_laghess.nzval))
                 else
                     @assert false
                 end
 
                 convert_to_c_idx(rowidx)
                 convert_to_c_idx(colptr)
-                if flag == 2 
+                if flag == 2
                     mat.isVal = false
                 end
             else
                 @assert false mode
-            end 
+            end
         end
-        
+
         instance.str_write_solution = function(id, x, y_eq, y_ieq)
             # @show id, x, y_eq, y_ieq
             @assert id in getLocalBlocksIds(instance.internalModel)
@@ -843,23 +851,23 @@ end
 ######
 
 function structJuMPSolve(model; with_prof=false, suppress_warmings=false, warmstart=false, kwargs...)
-    t_sj_lifetime = time()    
-    
+    t_sj_lifetime = time()
+
     comm = getStructure(model).mpiWrapper.comm
-    
-    t_sj_model_init = time()   
+
+    t_sj_model_init = time()
     @show warmstart
     prob = PipsNlpSolver.createProblemStruct(comm, StructJuMPModel(model,with_prof), with_prof, warmstart)
 
     t_sj_model_init = time() - t_sj_model_init
 
-    t_sj_solver_total = time()    
-    
+    t_sj_solver_total = time()
+
     status = PipsNlpSolver.solveProblemStruct(prob)
-    
+
     t_sj_solver_total = time() - t_sj_solver_total
-    
-    t_sj_lifetime = time() - t_sj_lifetime 
+
+    t_sj_lifetime = time() - t_sj_lifetime
 
         mid, nprocs = getMyRank()
         s1 = @sprintf("[%d/%d] [ t_sj_model_init %f t_sj_solver_total %f  t_sj_lifetime %f ] \n", mid, nprocs, t_sj_model_init, t_sj_solver_total, t_sj_lifetime)
@@ -1017,4 +1025,3 @@ end
 KnownSolvers["PipsNlp"] = PipsNlpInterface.structJuMPSolve
 
 end
-
