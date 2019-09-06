@@ -908,7 +908,7 @@ function initialization(instance::StructJuMPModel)
         features = MathProgBase.features_available(e)
         has_hessian = (:Hess in features)
         init_feat = [:Grad]
-        hass_hessian && push!(init_feat, :Hess)
+        has_hessian && push!(init_feat, :Hess)
         MathProgBase.numconstr(mm) > 0 && push!(init_feat, :Jac)
 
         MathProgBase.initialize(e,init_feat)
