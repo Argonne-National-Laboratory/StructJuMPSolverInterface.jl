@@ -666,7 +666,7 @@ mutable struct StructJuMPModel <: ModelInterface
                             end
                             x = build_x(m,rowid,x0,x1)
                             instance.prof && (t_jump_start = time())
-                            has_hessian && MathProgBase.eval_hesslag(e,mat.value,x,obj_factor,lam_new)
+                            MathProgBase.eval_hesslag(e,mat.value,x,obj_factor,lam_new)
                             instance.prof && (instance.t_jump += time() - t_jump_start)
                         end
                         mat.isVal = true
