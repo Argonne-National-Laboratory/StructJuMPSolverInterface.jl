@@ -6,6 +6,7 @@ module PipsNlpInterface
 Base.include(PipsNlpInterface, "pips_parallel_cfunc.jl")
 
 # using PipsNlpSolver
+import MPI
 using StructJuMP, JuMP
 using StructJuMPSolverInterface
 using Printf
@@ -91,8 +92,18 @@ mutable struct StructJuMPModel <: ModelInterface
     str_eval_h::Function
     str_write_solution::Function
 
+    ## Save best solution
+    # local copy of base case obj
+    bobj::Float64
+    userbobj::Float64
+    # summed up copy of scenario obj
+    sobj::Float64
+    usersobj::Float64
+    # # best global objective
+    # bestobj::Float64
+    # bestuserobj::Float64
 
-
+    xsaved::Dict{Int, Array{Float64}}
     function StructJuMPModel(model::JuMP.Model,prof=false)
         instance = new(model,0,-1,prof,
             Dict{Int,JuMP.NLPEvaluator}(),
@@ -110,6 +121,15 @@ mutable struct StructJuMPModel <: ModelInterface
             )
 
         initialization(instance)
+        bobj = 0
+        sobj = 0
+        userbobj = 0
+        usersobj = 0
+
+        setBestObjectiveVal(Inf)
+        setBestUserObjectiveVal(Inf)
+
+        xsaved = Dict{Int, Array{Float64}}()
 
         instance.get_num_scen = function()
             return num_scenarios(instance.internalModel)
@@ -277,14 +297,53 @@ mutable struct StructJuMPModel <: ModelInterface
 
 
         instance.str_eval_f = function(id,x0,x1)
-            # @printf("#*************** eval_f - %d \n", id)
-            # @show x0, x1
-            # x0, x1 = load_x("pips", instance.n_iter)
-
             e =  instance.evaluatorMap[id]
-
             instance.prof && (t_jump_start = time())
             obj = MathProgBase.eval_f(e,build_x(instance.internalModel,id,x0,x1))
+            xsaved[id] = build_x(instance.internalModel,id,x0,x1)
+            # save base case objective
+            last = getLocalChildrenIds(instance.internalModel)[end]
+            if id == 0
+                instance.bobj = obj
+            end
+            if id < last && id != 0
+                instance.sobj += obj
+            end
+            # reduce at the last child and save x and objective
+            if id == last
+                instance.sobj += obj
+                tmp = MPI.Allreduce(instance.sobj,MPI.SUM,MPI.COMM_WORLD) + instance.bobj
+                setObjectiveVal(tmp)
+                instance.sobj = 0.0
+                instance.bobj = 0.0
+                if tmp < getBestObjectiveVal()
+                    setBestObjectiveVal(tmp)
+                    setBestx(xsaved)
+                end
+            end
+            # do the same for user defined objective function
+            if @isdefined userobjective
+                userobj = userobjective(build_x(instance.internalModel,id,x0,x1), id)
+                # save base case objective
+                last = getLocalChildrenIds(instance.internalModel)[end]
+                if id == 0
+                    instance.userbobj = userobj
+                end
+                if id < last && id != 0
+                    instance.usersobj += userobj
+                end
+                if id == last
+                    instance.usersobj += userobj
+                    tmp = MPI.Allreduce(instance.usersobj,MPI.SUM,MPI.COMM_WORLD) + instance.userbobj
+                    instance.usersobj = 0.0
+                    instance.userbobj = 0.0
+                    if tmp < getBestUserObjectiveVal()
+                        setBestUserObjectiveVal(tmp)
+                        setBestUserx(xsaved)
+                    end
+                end
+            end
+
             instance.prof && (instance.t_jump += time() - t_jump_start)
             return obj
 

@@ -15,7 +15,9 @@ abstract type ModelInterface end
 
 export ModelInterface, KnownSolvers, sj_solve, getModel, getVarValue, getVarValues, getNumVars, 
         getNumCons, getTotalNumVars, getTotalNumCons, getLocalBlocksIds, getLocalChildrenIds,
-        getObjectiveVal, setTimeLimit
+        getObjectiveVal, setObjectiveVal, setTimeLimit 
+export setUserObjective, getBestx, getBestUserx, setBestx, setBestUserx, userobjective
+export setBestObjectiveVal, getBestObjectiveVal, setBestUserObjectiveVal, getBestUserObjectiveVal
         
 export setdualxu, setdualxl, setdualy, setdualz, dualxl, dualxu, dualy, dualz
 
@@ -24,6 +26,11 @@ dualxu = Dict{Tuple{JuMP.Model,JuMP.Variable},Float64}()
 dualy = Dict{Tuple{JuMP.Model,Int},Float64}()
 dualz = Dict{Tuple{JuMP.Model,Int},Float64}()
 
+bestx = Dict{Int, Array{Float64}}()
+bestuserx = Dict{Int, Array{Float64}}()
+bestobj = Inf
+bestuserobj = Inf
+objval = Inf
 const KnownSolvers = Dict{AbstractString,Function}();
 
 # In general we will use same ret code symbol for Ipopt
@@ -94,40 +101,6 @@ function getVarValue(m,id,idx)
     mm = getModel(m,id)
     @assert idx<=getNumVars(m,id)
     return JuMP.getvalue(JuMP.Variable(mm,idx))
-end
-
-##!feng function getObjectiveValue(m)
-##! It seems that getobjectivevalue(m) does not return the correct objetive value
-##!feng end
-function getObjectiveVal(m)
-  #MPI is already finalized , therefore returns only objective value at local nodes
-  # mid, nprocs = getMyRank()
-  # lobj = 0.0
-  # x0 = getVarValues(m,0)
-
-  # if mid == 0
-  #   e =  get_nlp_evaluator(m,0)
-  #   lobj = MathProgBase.eval_f(e,build_x(m,0,x0,x0))
-  # end
-
-  # for i in getLocalChildrenIds(m)
-  #     x1 = getVarValues(m,i)
-  #     lobj += MathProgBase.eval_f(get_nlp_evaluator(m,i),build_x(m,i,x0,x1))
-  # end
-
-  # obj = MPI.Reduce(lobj,MPI.SUM,0,getStructure(m).comm)
-  lobj =0.0
-  x0 = getVarValues(m,0)
-  # @show x0
-  e = get_nlp_evaluator(m,0)
-  lobj = MathProgBase.eval_f(e,build_x(m,0,x0,x0))
-  for i in getchildren(m)
-    id = i[1]
-    e = get_nlp_evaluator(m,id)
-    x1 = getVarValues(m,id)
-    lobj += MathProgBase.eval_f(e,build_x(m,id,x0,x1))
-  end
-  return lobj;
 end
 
 function getNumVars(m,id)
@@ -234,6 +207,48 @@ end
 function setdualz(model::JuMP.Model, constraint::ConstraintRef, value::Float64)
     tup = (model, constraint.idx)
     dualz[tup] = value 
+end
+
+function setUserObjective(f::Function)
+  global userobjective = f
+end
+
+function getBestx()
+  return bestx
+end
+
+function setBestx(dict)
+  global bestx = deepcopy(dict)
+end
+
+function getBestUserx()
+  return bestuserx
+end
+
+function setBestUserx(dict)
+  global bestuserx = deepcopy(dict)
+end
+
+function setObjectiveVal(val::Float64)
+  global objval = val
+end
+function getObjectiveVal()
+  objval
+end
+
+function setBestObjectiveVal(val::Float64)
+  global bestobj = val
+end
+
+function getBestObjectiveVal()
+  bestobj
+end
+function setBestUserObjectiveVal(val::Float64)
+  global bestuserobj = val
+end
+
+function getBestUserObjectiveVal()
+  bestuserobj
 end
 
 end # module StructJuMPSolverInterface
